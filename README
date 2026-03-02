@@ -1,0 +1,5 @@
+for test real faces / test etmek icin :
+
+-> python local_tester.py irl_test\
+-> python local_tester.py irl_test\spesificimage.png
+
