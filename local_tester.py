@@ -355,13 +355,13 @@ class TextureTester:
     def get_interpretation(self, score):
         """Skor yorumu"""
         if score >= 70:
-            return "Pürüzsüz cilt", (0, 255, 0)  # Yeşil
+            return "Smooth skin", (0, 255, 0)  # Yeşil
         elif score >= 50:
-            return "Normal doku", (0, 200, 100)  # Açık yeşil
+            return "Normal texture", (0, 200, 100)  # Açık yeşil
         elif score >= 35:
-            return "Orta düzey", (0, 165, 255)  # Turuncu
+            return "Moderate texture", (0, 165, 255)  # Turuncu
         else:
-            return "Belirgin doku", (0, 0, 255)  # Kırmızı
+            return "Prominent texture", (0, 0, 255)  # Kırmızı
     
     def test_image(self, image_path, show=True):
         """Tek görüntü test et"""
@@ -404,10 +404,36 @@ class TextureTester:
             print(f"{'='*40}")
         
         if show:
-            # Görselleştirme
+            # Doku varyasyonlarını (128'den olan absdiff sapmaları) hesapla
+            deviation = cv2.absdiff(texture_map, 128)
+            
+            # Doku kusurlarını x8 kat büyüterek çooook daha belirgin hale getiriyoruz
+            highlight = cv2.convertScaleAbs(deviation, alpha=8.0)
+            
+            # "Tüm dokuyu sarması" için doku alanının tamamına hafif kırmızı bir zemin ekliyoruz
+            # Bu sayede sadece kusurlu yerler değil, modelin baktığı tüm alan belirginleşiyor
+            mask_area = (deviation > 0).astype(np.uint8)
+            mask_area = cv2.dilate(mask_area, np.ones((5, 5), np.uint8), iterations=3)
+            base_red = mask_area * 40  # Hafif kırmızı zemin tonu
+            
+            # Önce zemin kırmızısı ile kusurların kırmızısını birleştirelim
+            total_red_add = cv2.add(highlight, base_red)
+            
+            # Analiz edilen görselin üstüne yapıştırmak / kopyalamak için Overlay oluştur
+            overlaid_image = original.copy()
+            
+            # Kırmızı kanalını (2) güçlüce artırıyoruz
+            overlaid_image[:, :, 2] = cv2.add(overlaid_image[:, :, 2], total_red_add)
+            
+            # Kırmızılığın tam kan kırmızısı gibi belli olması için diğer renkleri (Mavi ve Yeşil) ciddi oranda kısıyoruz
+            reduce_val = cv2.convertScaleAbs(highlight, alpha=0.8)
+            overlaid_image[:, :, 1] = cv2.subtract(overlaid_image[:, :, 1], reduce_val)
+            overlaid_image[:, :, 0] = cv2.subtract(overlaid_image[:, :, 0], reduce_val)
+
+            # Görselleştirme (Gözle test etmeyi kolaylaştırmak için boyut 400x400'e çıkarıldı)
             display = np.hstack([
-                cv2.resize(original, (300, 300)),
-                cv2.resize(cv2.cvtColor(texture_map, cv2.COLOR_GRAY2BGR), (300, 300))
+                cv2.resize(original, (400, 400)),
+                cv2.resize(overlaid_image, (400, 400))
             ])
             
             # Skor yazısı

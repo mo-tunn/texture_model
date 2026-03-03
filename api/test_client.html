@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Texture Model Test Client</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --panel-bg: rgba(22, 27, 34, 0.7);
+            --border-color: rgba(48, 54, 61, 0.8);
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --accent: #001cf2;
+            --accent-hover: #3182ce;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #58a6ff, #0449e9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1000px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+        }
+
+        @media (min-width: 1000px) {
+            .container {
+                max-width: 900px;
+                /* Keep panels stacked vertically for larger images */
+            }
+        }
+
+        .panel {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .url-input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background-color: rgba(0, 0, 0, 0.3);
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            background-color: rgba(255, 255, 255, 0.02);
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+        }
+
+        .upload-area:hover,
+        .upload-area.dragover {
+            border-color: var(--accent);
+            background-color: rgba(88, 166, 255, 0.05);
+        }
+
+        .upload-area input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+
+        .preview-img {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 8px;
+            display: none;
+            margin-top: 15px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn {
+            background-color: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 12px 24px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 20px;
+            width: 100%;
+        }
+
+        .btn:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .btn:disabled {
+            background-color: var(--border-color);
+            color: var(--text-secondary);
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border-top: 4px solid var(--accent);
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .result-panel {
+            display: none;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .score-display {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--accent);
+        }
+
+        .score-value {
+            font-size: 3rem;
+            font-weight: bold;
+        }
+
+        .score-interpretation {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            margin-top: 5px;
+        }
+
+        .sub-scores {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 10px;
+        }
+
+        .images-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .image-col {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .image-col span {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        .result-img {
+            width: 100%;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .error-message {
+            color: #ff7b72;
+            background: rgba(255, 123, 114, 0.1);
+            border: 1px solid rgba(255, 123, 114, 0.4);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>Texture Analysis Test Client</h1>
+        <p class="subtitle">Standalone client to test your microservices</p>
+    </header>
+
+    <div class="container">
+        <!-- Input Panel -->
+        <div class="panel">
+            <h2>Configuration & Input</h2>
+
+            <div class="form-group">
+                <label for="api-url">API Endpoint URL</label>
+                <input type="text" id="api-url" class="url-input" value="http://localhost:8000/analyze"
+                    placeholder="https://api.example.com/analyze">
+            </div>
+
+            <div class="upload-area" id="drop-area">
+                <input type="file" id="file-input" accept="image/*">
+                <div id="upload-placeholder">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round"
+                        style="color: var(--accent); margin-bottom: 10px;">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <p>Click or drag image to upload</p>
+                </div>
+                <img id="preview" class="preview-img" alt="Preview">
+            </div>
+
+            <button id="analyze-btn" class="btn" disabled>Send Request to Backend</button>
+
+            <div id="error-box" class="error-message"></div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Waiting for response from backend...</p>
+            </div>
+        </div>
+
+        <!-- Result Panel -->
+        <div class="panel" id="result-panel"
+            style="display: flex; justify-content: center; align-items: center; color: var(--text-secondary)">
+            <p id="placeholder-text">API response will appear here</p>
+        </div>
+
+        <div class="panel result-panel" id="active-result-panel">
+            <h2>Analysis Results</h2>
+
+            <div class="score-display" id="score-card">
+                <div>
+                    <div
+                        style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary);">
+                        Texture Score</div>
+                    <div class="score-interpretation" id="interpretation">Smooth Skin</div>
+                    <div class="sub-scores" id="sub-scores"></div>
+                </div>
+                <div class="score-value" id="score-val">90.0</div>
+            </div>
+
+            <div class="images-grid">
+                <div class="image-col">
+                    <span>Original</span>
+                    <img id="original-res" class="result-img" alt="Original">
+                </div>
+                <div class="image-col">
+                    <span>Heatmap Overlay</span>
+                    <img id="heatmap-res" class="result-img" alt="Heatmap">
+                </div>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <h3 style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 5px;">Raw API Response:</h3>
+                <pre id="raw-json"
+                    style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 6px; font-size: 0.8rem; overflow-x: auto; color: #a5d6ff;"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('file-input');
+        const preview = document.getElementById('preview');
+        const uploadPlaceholder = document.getElementById('upload-placeholder');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const apiUrlInput = document.getElementById('api-url');
+        const errorBox = document.getElementById('error-box');
+        const loading = document.getElementById('loading');
+
+        const placeholderPanel = document.getElementById('result-panel');
+        const activeResultPanel = document.getElementById('active-result-panel');
+
+        let currentFile = null;
+
+        // Handle file selection
+        fileInput.addEventListener('change', function (e) {
+            handleFiles(this.files);
+        });
+
+        // Drag and drop support
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.remove('dragover'), false);
+        });
+
+        dropArea.addEventListener('drop', function (e) {
+            let dt = e.dataTransfer;
+            let files = dt.files;
+            handleFiles(files);
+        });
+
+        function handleFiles(files) {
+            if (files.length > 0) {
+                currentFile = files[0];
+                const reader = new FileReader();
+                reader.readAsDataURL(currentFile);
+                reader.onloadend = function () {
+                    preview.src = reader.result;
+                    preview.style.display = 'block';
+                    uploadPlaceholder.style.display = 'none';
+                    analyzeBtn.disabled = false;
+
+                    // Reset UI
+                    errorBox.style.display = 'none';
+                    activeResultPanel.style.display = 'none';
+                    placeholderPanel.style.display = 'flex';
+                }
+            }
+        }
+
+        analyzeBtn.addEventListener('click', async () => {
+            if (!currentFile) return;
+
+            const apiUrl = apiUrlInput.value.trim();
+            if (!apiUrl) {
+                showError("Please enter an API endpoint URL.");
+                return;
+            }
+
+            // UI changes
+            analyzeBtn.disabled = true;
+            loading.style.display = 'block';
+            errorBox.style.display = 'none';
+            activeResultPanel.style.display = 'none';
+            placeholderPanel.style.display = 'flex';
+
+            const formData = new FormData();
+            formData.append('file', currentFile); // Some APIs might expect 'image' instead of 'file', adjust if needed.
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                let data;
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    throw new Error(`The server did not return valid JSON. Status: ${response.status} ${response.statusText}`);
+                }
+
+                if (data.success || response.ok) {
+                    // Update results UI if the API returns the expected format
+                    // Fallback to defaults if specific data fields aren't present
+
+                    const color = data.color || '#58a6ff';
+                    const scoreCard = document.getElementById('score-card');
+                    scoreCard.style.borderLeftColor = color;
+
+                    document.getElementById('score-val').textContent = data.score !== undefined ? data.score.toFixed(1) : '?';
+                    document.getElementById('score-val').style.color = color;
+                    document.getElementById('interpretation').textContent = data.interpretation || 'No interpretation provided';
+
+                    if (data.v3_score !== undefined && data.v5_score !== undefined && data.v3_score !== null) {
+                        document.getElementById('sub-scores').textContent = `v3: ${data.v3_score} | v5: ${data.v5_score}`;
+                    } else {
+                        document.getElementById('sub-scores').textContent = '';
+                    }
+
+                    if (data.original_image) {
+                        document.getElementById('original-res').src = data.original_image;
+                    }
+                    if (data.heatmap_image) {
+                        document.getElementById('heatmap-res').src = data.heatmap_image;
+                    }
+
+                    // Show raw JSON for debugging
+                    const rawJsonDisplay = document.getElementById('raw-json');
+                    // Create a copy without the huge base64 strings so it doesn't freeze the browser
+                    const dataCopy = { ...data };
+                    if (dataCopy.original_image) dataCopy.original_image = "[BASE64_IMAGE_DATA]";
+                    if (dataCopy.heatmap_image) dataCopy.heatmap_image = "[BASE64_IMAGE_DATA]";
+
+                    rawJsonDisplay.textContent = JSON.stringify(dataCopy, null, 2);
+
+                    placeholderPanel.style.display = 'none';
+                    activeResultPanel.style.display = 'flex';
+                } else {
+                    showError(data.error || "The server returned an error.");
+                }
+            } catch (error) {
+                showError(error.message || "Error connecting to server. Make sure the API URL is correct and CORS is enabled on the server.");
+                console.error(error);
+            } finally {
+                loading.style.display = 'none';
+                analyzeBtn.disabled = false;
+            }
+        });
+
+        function showError(message) {
+            errorBox.textContent = `Error: ${message}`;
+            errorBox.style.display = 'block';
+        }
+    </script>
+</body>
+
+</html>

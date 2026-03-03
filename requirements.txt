@@ -2,3 +2,6 @@ opencv-python
 numpy
 tensorflow
 mediapipe
+fastapi
+uvicorn
+python-multipart
