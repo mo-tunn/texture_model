@@ -1,0 +1,3 @@
+https://www.kaggle.com/datasets/tiswan14/acne-dataset-image
+https://www.kaggle.com/datasets/nayanchaure/face-scar
+https://www.kaggle.com/datasets/arnaud58/flickrfaceshq-dataset-ffhq
