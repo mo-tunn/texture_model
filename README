@@ -1,102 +1,94 @@
-# Texture Analysis Pipeline - Hibrit Dokümantasyon (v3 & v5)
+# Texture Analysis Pipeline - Hybrid Documentation (v3 & v5)
 
-Bu dokümantasyon, cilt dokusu pürüzlülüğünü (texture) 0-100 arasında değerlendiren iki bağımsız modelin (**v3** ve **v5**) eğitim süreçlerini ve bu iki modelin birleştirilerek test ortamında (`local_tester.py`) oluşturduğu **Hibrit Karar Mekanizması**'nı açıklamaktadır.
-
----
-
-## 1. Genel Mimari ve Amaç
-
-Cilt dokusunu (sivilce, yara izi, geniş gözenekler, ince çizgiler) nesnel olarak puanlamak hedeflenmektedir. Bu amaçla tek bir her şeye yeten model yerine, farklı güçlü yanları olan iki model eğitilmiş ve hibrit bir sistem kurulmuştur:
-
-1.  **v3 Modeli (İyi Cilt Uzmanı):** Sadece yüksek kaliteli genel yüz verileriyle (FFHQ) eğitilmiş, nispeten dar bir puan aralığında tahminde bulunan güvenli model. (Referans: `Texture_Analysis_Colab_v3.ipynb`)
-2.  **v5 Modeli (Sorunlu Cilt Uzmanı):** FFHQ verilerine ek olarak binlerce spesifik sivilce (Acne) ve yara izi (Scar) verisi eklenerek eğitlen, kusurları hemen cezalandıran model. (Referans: `Texture_Analysis_Colab_v5.ipynb`)
-
-Test aşamasında (inference) bu iki modelin skorları normalize edilerek belirli eşik ve ağırlıklandırma kurallarıyla birleştirilir.
+This documentation explains the training processes of two independent models (**v3** and **v5**) that evaluate skin texture roughness on a scale of 0-100, and the **Hybrid Decision Mechanism** created by combining these two models in the test environment (`local_tester.py`).
 
 ---
 
-## 2. v3 Modeli: Balanced Training (İyi Cilt Odaklı)
+## 1. General Architecture and Purpose
 
-v3 modeli, yüksek çözünürlüklü ve genel yüz fotoğraflarından oluşan FFHQ veri setine odaklanır.
+The goal is to objectively score skin texture (acne, scars, large pores, fine lines). For this purpose, instead of a single omnipotent model, two models with different strengths were trained, and a hybrid system was established:
 
-### Özellikler:
-*   **Veri Seti:** ~10,000 FFHQ-256 görseli.
-*   **Odak Noktası:** Cildin genel yapısını anlamak, pürüzsüz cilde "pürüzsüz" demek.
-*   **Labellama Stratejisi:** İnsan müdahalesi olmadan 8 farklı matematiksel özellik (Fourier Entropy, GLCM, Ra, Rq vb.) üzerinden formül ile otomatik puanlama.
-*   **Dengeleme (Balancing):** `Oversampling` yapılarak az bulunan skor aralıkları çoğaltılmış ve dengeli bir dağılım oluşturulmuştur.
-*   **Model Özellikleri:** EfficientNetB0 Tabanlı, Huber Loss. Hedef MAE (Mean Absolute Error) `5 - 8`.
-*   **Karakteristiği:** Uç puanlamalardan (çok iyi veya çok kötü) kaçınır, puanlama aralığı **20 - 70** arasında yoğunlaşır. Pasiftir.
+1.  **v3 Model (Good Skin Expert):** A safe model trained only with high-quality general face data (FFHQ), making predictions within a relatively narrow score range. (Reference: `Texture_Analysis_Colab_v3.ipynb`)
+2.  **v5 Model (Problematic Skin Expert):** A model trained by adding thousands of specific acne and scar data in addition to FFHQ data, instantly penalizing flaws. (Reference: `Texture_Analysis_Colab_v5.ipynb`)
+
+During the test phase (inference), the scores of these two models are normalized and combined using specific threshold and weighting rules.
 
 ---
 
-## 3. v5 Modeli: Semi-Supervised ve İnsan Kalibrasyonu (Sorunlu Cilt Odaklı)
+## 2. v3 Model: Balanced Training (Good Skin Oriented)
 
-v5 modeli, v3'ün eksik kaldığı spesifik sorunlu ciltleri (şiddetli sivilce, akne, skar) doğru cezalandırabilmesi üzerine tasarlanmıştır. Yarı-denetimli bir mimaridiren (Semi-Supervised Learning).
+The v3 model focuses on the FFHQ dataset, which consists of high-resolution, general face photos.
 
-### Özellikler:
-*   **Veri Seti:** 
-    *   `FFHQ` (Normal Yüzler) ~5,000 görsel
-    *   `Acne` (Sivilceli Yüzler) ~1,000 görsel
-    *   `Scar` (Yara İzli Yüzler) ~500 görsel
-*   **Labellama Stratejisi (Human Calibration):** 
-    1. Sistemden rastgele 300 görsel (her kategoriden 100) seçildi.
-    2. İnsan tarafından manuel olarak 0-100 arası (0:Çok kötü, 100: Mükemmel) skorlandı.
-    3. Manuel etiketler kullanılarak matematiksel 12 fütur ile eşleştirip bir **XGBoost Regressor** (Kalibrasyon Modeli) eğitildi.
-*   **Label Propagation:** XGBoost modeli manuel puanlanan 300 görsel üzerinden öğrendiğini geriye kalan 6,000+ görsele uygulayarak tüm veri setini etiketledi.
-*   **Ana Model Eğitimi:** XGBoost kararlarıyla labellanan 6000+ görsel, EfficientNetB0 yapısı ile tekrar eğitildi.
-*   **Karakteristiği:** Sivilcelerde puanı anında 5-10 bandına çeken, oldukça **agresif** ve kusur avcısıdır. Puanlama aralığı ağırlıklı olarak **5 - 40** arasındadır.
+### Features:
+* **Dataset:** ~10,000 FFHQ-256 images.
+* **Focus:** Understanding the general structure of the skin, identifying smooth skin as "smooth".
+* **Labeling Strategy:** Automated scoring via formula using 8 different mathematical features (Fourier Entropy, GLCM, Ra, Rq, etc.) without human intervention.
+* **Balancing:** Creating a balanced distribution by `oversampling` rare score ranges.
+* **Model Features:** EfficientNetB0 based, Huber Loss. Target MAE (Mean Absolute Error) `5 - 8`.
+* **Characteristic:** Avoids extreme scoring (very good or very bad), the scoring range is concentrated between **20 - 70**. It is passive.
 
 ---
 
-## 4. Matematiksel Özellik Çıkarımı (Feature Extraction)
+## 3. v5 Model: Semi-Supervised and Human Calibration (Problematic Skin Oriented)
 
-Eğitim setlerini labellarken (V3'te doğrudan, V5'te kalibrasyonu desteklemek için) fiziksel pürüzlülüğü ölçen sinyal işleme araçları kullanılmıştır:
+The v5 model is designed to correctly penalize specific problematic skins (severe acne, scars) where v3 falls short. It uses a Semi-Supervised Learning architecture.
 
-1.  **Fourier Entropy & Spatial Entropy**: Piksellerin karmaşıklığı.
-2.  **DWT Energy (Wavelet)**: İnce detaylardaki enerji seviyesi.
-3.  **Ra, Rq (ISO 4287)**: Fiziksel yüzey pürüzlülük standartları.
-4.  **GLCM (Contrast, Homogeneity vb.)**: Komşu pikseller arası renk geçişlerindeki sertlik.
-5.  **MLC, Laplacian Variance, Gradient Magnitude**: Kenar/Köşe tespitleri. 
-
----
-
-## 5. Inference: v3 ve v5 Hibrit Çıkarım (local_tester.py)
-
-Son kullanıcı tarafında çalışan sistem, canlı kamerada ya da resim üzerinde, v3 ve v5 modellerini *birlikte* çalıştırır. Elde edilen iki farklı kararı matematiksel "Ağırlıklı Karar Mekanizması" ile uzlaştırarak nihai bir cilt skoru verir.
-
-### Aşama 1: Normalizasyon
-
-Model karakterleri sebebiyle üretilen raw (ham) skorlar aynı uzayda değildir. Bu nedenle belirlenen dağılım karakteristiklerine göre ikisi de 0-100 skalasına standardize edilir.
-
-*   `v3_norm = (v3_raw - 20) / (70 - 20) * 100` (Yumuşak artış için aralık `20-70` olarak genişletilmiştir).
-*   `v5_norm = (v5_raw - 5) / (40 - 5) * 100`
-
-### Aşama 2: Ağırlıklı Karar Kuralları
-
-Karar aşamasında (Hybrid Score Calculation) bir `Eşik (Threshold) = 50.0` kabul edilir. 50 üstü iyi, altı problemli cilt demektir. Algoritma iki skorun `norm` karşılığına bakar.
-
-1.  **İstisna Koruması (v5 Şişkinliğini Önleme):** 
-    Eğer `v5_raw < 28` (Hatalıdır, Kötüdür) **VE** `v3_raw >= 55` (Harikadır, Temizdir) ise, sistem çelişkiye düşer. Bu çelişkide v5'in norm puanının matematiksel tavan yapıp skoru suni saptırmasını önlemek için *`v5_norm = min(v5_norm, 45.0)`* sınırından geçememesi emredilir.
-2.  **Mükemmeliyet (Kural 1 - %90 v3):** 
-    Eğer `v3_norm >= 80` ise, cilt tartışmasız pürüzsüzdür. Sistem v5'in agresifliğine kulak asmaz, v3'ün kararına %90 ağırlık verir.
-3.  **Ortak İyilik (Kural 2 - %80 v3):** 
-    İki model de eşiği geçtiyse (`v3_norm >= 50` ve `v5_norm >= 50`), cilt güzeldir. İyi cilt uzmanı olan v3'e %80 güvenilir.
-4.  **Ortak Kötülük (Kural 3 - %80 v5):** 
-    İki model de eşiği geçemediyse (`v3_norm < 50` ve `v5_norm < 50`), cilt sorunludur. Sorunlu cilt uzmanı v5'e %80 güvenilir.
-5.  **Karamsar Çelişki (Kural 4 - %80 v5):** 
-    v3 cildi beğendi ama v5 beğenmediyse (`v5_norm < 50`). v5 agresif model olduğu için %80 ihtimalle bir noktada mikroskobik skar veya sivilce bulmuştur. Hastalığı atlamamak adına karamsar uzman v5'e %80 güvenilir.
-6.  **İyimser Çelişki (Kural 5 - %50 Kararsızlık):** 
-    v5 "çok iyi" diyor, ama normal şartlarda pasif olan v3 "hayır kötü" (`v3_norm < 50`) diyorsa, ortama kararsızlık hakim olur. Bu durumda iki modelin güvenilirliği yarı-yarıya `%50` alınarak ortalamaya gidilir. 
+### Features:
+* **Dataset:** * `FFHQ` (Normal Faces) ~5,000 images
+    * `Acne` (Acne-prone Faces) ~1,000 images
+    * `Scar` (Scarred Faces) ~500 images
+* **Labeling Strategy (Human Calibration):** 1. 300 random images (100 from each category) were selected from the system.
+    2. Manually scored by a human between 0-100 (0: Very bad, 100: Perfect).
+    3. An **XGBoost Regressor** (Calibration Model) was trained by mapping the manual labels to 12 mathematical features.
+* **Label Propagation:** The XGBoost model applied what it learned from the 300 manually scored images to the remaining 6,000+ images, labeling the entire dataset.
+* **Main Model Training:** The 6,000+ images labeled with XGBoost decisions were retrained using the EfficientNetB0 architecture.
+* **Characteristic:** It immediately pulls the score down to the 5-10 range for acne, being quite **aggressive** and a flaw hunter. The scoring range is predominantly between **5 - 40**.
 
 ---
 
-## 6. Sonuç ve Dağılımlar Çıktısı
+## 4. Mathematical Feature Extraction
 
-| Skor Aralığı | UI Yorumu | Renk Kodu |
+Signal processing tools that measure physical roughness were used while labeling the training sets (directly in V3, to support calibration in V5):
+
+1.  **Fourier Entropy & Spatial Entropy**: Pixel complexity.
+2.  **DWT Energy (Wavelet)**: Energy level in fine details.
+3.  **Ra, Rq (ISO 4287)**: Physical surface roughness standards.
+4.  **GLCM (Contrast, Homogeneity, etc.)**: Harshness in color transitions between neighboring pixels.
+5.  **MLC, Laplacian Variance, Gradient Magnitude**: Edge/Corner detection.
+
+---
+
+## 5. Inference: v3 and v5 Hybrid Extraction (`local_tester.py`)
+
+The system running on the end-user side runs the v3 and v5 models *together* on a live camera or image. It reconciles the two different decisions obtained with a mathematical "Weighted Decision Mechanism" to give a final skin score.
+
+### Phase 1: Normalization
+
+The raw scores produced due to model characteristics are not in the same space. Therefore, both are standardized to a 0-100 scale according to determined distribution characteristics.
+
+* `v3_norm = (v3_raw - 20) / (70 - 20) * 100` (The range is expanded to `20-70` for a smooth increase).
+* `v5_norm = (v5_raw - 5) / (40 - 5) * 100`
+
+### Phase 2: Weighted Decision Rules
+
+A `Threshold = 50.0` is accepted during the decision phase (Hybrid Score Calculation). Above 50 means good, below means problematic skin. The algorithm looks at the `norm` equivalent of the two scores.
+
+1.  **Exception Protection (Preventing v5 Inflation):** If `v5_raw < 28` (Faulty, Bad) **AND** `v3_raw >= 55` (Great, Clean), the system falls into a contradiction. In this contradiction, to prevent v5's norm score from mathematically peaking and artificially skewing the score, it is ordered not to exceed the *`v5_norm = min(v5_norm, 45.0)`* limit.
+2.  **Perfection (Rule 1 - 90% v3):** If `v3_norm >= 80`, the skin is indisputably smooth. The system ignores v5's aggressiveness and gives 90% weight to v3's decision.
+3.  **Common Good (Rule 2 - 80% v3):** If both models pass the threshold (`v3_norm >= 50` and `v5_norm >= 50`), the skin is good. 80% trust is placed in v3, the good skin expert.
+4.  **Common Bad (Rule 3 - 80% v5):** If neither model passes the threshold (`v3_norm < 50` and `v5_norm < 50`), the skin is problematic. 80% trust is placed in v5, the problematic skin expert.
+5.  **Pessimistic Contradiction (Rule 4 - 80% v5):** If v3 liked the skin but v5 didn't (`v5_norm < 50`). Because v5 is an aggressive model, there is an 80% chance it found a microscopic scar or acne somewhere. To avoid missing the disease, 80% trust is placed in v5, the pessimistic expert.
+6.  **Optimistic Contradiction (Rule 5 - 50% Indecision):** If v5 says "very good", but v3, which is normally passive, says "no, bad" (`v3_norm < 50`), indecision prevails. In this case, the reliability of the two models is taken as half-and-half `%50` and averaged. 
+
+---
+
+## 6. Conclusion and Distribution Output
+
+| Score Range | UI Interpretation | Color Code |
 | :--- | :--- | :--- |
-| **70 - 100** | Pürüzsüz cilt | Yeşil |
-| **50 - 69** | Normal doku | Açık Yeşil |
-| **35 - 49** | Orta düzey | Turuncu |
-| **0 - 34** | Belirgin doku | Kırmızı |
+| **70 - 100** | Smooth skin | Green |
+| **50 - 69** | Normal texture | Light Green |
+| **35 - 49** | Moderate texture | Orange |
+| **0 - 34** | Prominent texture | Red |
 
-Yukarıdaki akış sayesinde tek başına sadece normal yüzlerde çalışan v3 modeli ile sadece bozuk cildi tespit eden v5 modeli "Komite (Ensemble)" tarzı bir çalışma ile dengelenmiş olur.
+Thanks to the flow above, the v3 model, which only works on normal faces, and the v5 model, which only detects damaged skin, are balanced through a "Committee (Ensemble)" style of work.
